@@ -1,0 +1,114 @@
+{
+  "id": "00000000-0000-4000-8000-00000000000f",
+  "jsonrpc": "2.0",
+  "result": {
+    "contextId": "00000000-0000-4000-8000-0000000000c0",
+    "history": [
+      {
+        "contextId": "00000000-0000-4000-8000-0000000000c0",
+        "extensions": [
+          "https://fabric.affinidi.io/extensions/agent-identity/v1"
+        ],
+        "kind": "message",
+        "messageId": "00000000000000000000000000000001",
+        "metadata": {
+          "https://fabric.affinidi.io/extensions/agent-identity/v1": {
+            "agentIdentity": {
+              "name": "A2A Test Client",
+              "version": "1.0.0"
+            }
+          }
+        },
+        "parts": [
+          {
+            "kind": "text",
+            "text": "I would like my completion code."
+          }
+        ],
+        "role": "user",
+        "taskId": "00000000-0000-4000-8000-0000000000a1"
+      }
+    ],
+    "id": "00000000-0000-4000-8000-0000000000a1",
+    "kind": "task",
+    "status": {
+      "message": {
+        "contextId": "00000000-0000-4000-8000-0000000000c0",
+        "extensions": [
+          "https://fabric.affinidi.io/extensions/agent-identity-credential/v1"
+        ],
+        "kind": "message",
+        "messageId": "00000000000000000000000000000002",
+        "metadata": {
+          "https://fabric.affinidi.io/extensions/agent-identity-credential/v1": {
+            "did": "did:webvh:zEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEB:example-gateway.agentgateway.affinidi.io:surface:00000000-0000-4000-8000-0000000000b0",
+            "verifiablePresentation": {
+              "@context": [
+                "https://www.w3.org/ns/credentials/v2"
+              ],
+              "holder": "did:webvh:zEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEB:example-gateway.agentgateway.affinidi.io:surface:00000000-0000-4000-8000-0000000000b0",
+              "id": "urn:uuid:00000000-0000-4000-8000-0000000000d1",
+              "proof": {
+                "created": "2026-01-01T00:00:00.000Z",
+                "cryptosuite": "eddsa-rdfc-2022",
+                "proofPurpose": "assertionMethod",
+                "proofValue": "zEXAMPLE-PLACEHOLDER-NOT-A-REAL-SIGNATURE-EXAMPLE-PLACEHOLDER",
+                "type": "DataIntegrityProof",
+                "verificationMethod": "did:webvh:zEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEB:example-gateway.agentgateway.affinidi.io:surface:00000000-0000-4000-8000-0000000000b0#key-2"
+              },
+              "type": [
+                "VerifiablePresentation"
+              ],
+              "verifiableCredential": {
+                "@context": [
+                  "https://www.w3.org/ns/credentials/v2"
+                ],
+                "credentialSubject": {
+                  "id": "did:webvh:zEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEB:example-gateway.agentgateway.affinidi.io:surface:00000000-0000-4000-8000-0000000000b0",
+                  "workloadBinding": {
+                    "agentIdentity": {
+                      "model": "bedrock/claude-3.5-sonnet",
+                      "name": "Hello A2A Agent",
+                      "role": "Hello A2A Agent Server"
+                    },
+                    "delegated": true,
+                    "traceId": "00000000-0000-4000-8000-0000000000e5",
+                    "userIdentity": {
+                      "id": "did:webvh:zEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEA:example-gateway.agentgateway.affinidi.io:surface:00000000-0000-4000-8000-0000000000a0"
+                    }
+                  }
+                },
+                "id": "urn:uuid:00000000-0000-4000-8000-0000000000d2",
+                "issuer": "did:webvh:zEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEG:example-gateway.agentgateway.affinidi.io",
+                "proof": {
+                  "created": "2026-01-01T00:00:00.000Z",
+                  "cryptosuite": "eddsa-rdfc-2022",
+                  "proofPurpose": "assertionMethod",
+                  "proofValue": "zEXAMPLE-PLACEHOLDER-NOT-A-REAL-SIGNATURE-EXAMPLE-PLACEHOLDER",
+                  "type": "DataIntegrityProof",
+                  "verificationMethod": "did:webvh:zEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEG:example-gateway.agentgateway.affinidi.io#key-2"
+                },
+                "type": [
+                  "VerifiableCredential",
+                  "AgentIdentityCredential"
+                ],
+                "validFrom": "2026-01-01T00:00:00+00:00",
+                "validUntil": "2027-01-01T00:00:00+00:00"
+              }
+            }
+          }
+        },
+        "parts": [
+          {
+            "kind": "text",
+            "text": "Your message arrived carrying a gateway-signed identity presentation.\n\nCaller DID: did:webvh:zEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLEA:example-gateway.agentgateway.affinidi.io:surface:00000000-0000-4000-8000-0000000000a0\nName presented: A2A Test Client\n\nHere is your completion code: 000000\n\nSubmit it to the Lab catalogue with the recipe id hello-agent."
+          }
+        ],
+        "role": "agent",
+        "taskId": "00000000-0000-4000-8000-0000000000a1"
+      },
+      "state": "completed",
+      "timestamp": "2026-01-01T00:00:00.000000"
+    }
+  }
+}

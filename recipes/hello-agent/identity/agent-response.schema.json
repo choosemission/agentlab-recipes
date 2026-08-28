@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "x-identity": true
+    },
+    "name": {
+      "type": "string",
+      "x-identity": true
+    },
+    "model": {
+      "type": "string",
+      "x-identity": true
+    }
+  },
+  "required": [
+    "role",
+    "name",
+    "model"
+  ]
+}

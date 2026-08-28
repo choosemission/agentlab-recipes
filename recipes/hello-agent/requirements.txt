@@ -1,0 +1,8 @@
+# Pinned to the version Affinidi's sample uses, so the client and the agent
+# agree on the wire format the gateway matches on.
+# Vendored from affinidi-labs-tgw-get-started a2a/requirements.txt
+# at commit a516a170be9e3e68a1f54592e128af1c331df37a.
+a2a-sdk[http-server]==0.3.25
+# Pinned rather than floating because `agent/` runs on it: the deployed target
+# and Affinidi's sample both use this version.
+uvicorn==0.38.0
