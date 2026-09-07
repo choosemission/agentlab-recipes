@@ -23,11 +23,52 @@ lapses — leave it alone over a weekend and expect to sign in once more.
 
 ```bash
 ./tools/lab-login.sh --status              # who am I, and for how long
+./tools/lab-login.sh --claims              # what the token actually says
 ./tools/lab-login.sh --header              # an Authorization: line to paste
 ./tools/lab-login.sh --token               # just the token
-./tools/lab-login.sh --mcp lab-github URL  # point an MCP client at a surface
+./tools/lab-login.sh --consent URL         # approve what a surface reaches upstream
+./tools/lab-login.sh --mcp NAME URL        # point Claude Code at a surface
 ./tools/lab-login.sh --logout              # forget it
 ```
+
+`--mcp` is the only one tied to a particular client: it shells out to
+`claude mcp add`, registering the surface at user scope so it works from any
+directory. Everything else is client-agnostic.
+
+### Connecting a client that is not Claude Code
+
+There is no magic in `--mcp`. Any MCP client needs the same three things:
+
+| | |
+| --- | --- |
+| Transport | HTTP — streamable HTTP, not SSE and not stdio |
+| URL | your surface's **access point**, from the canvas header |
+| Header | `Authorization: Bearer <token>` |
+
+Get the header with `./tools/lab-login.sh --header` and paste it wherever your
+client keeps headers. Most clients take a variant of this shape:
+
+```json
+{
+  "mcpServers": {
+    "github-gw": {
+      "type": "http",
+      "url": "https://your-gateway/your/route",
+      "headers": { "Authorization": "Bearer eyJhbGciOi..." }
+    }
+  }
+}
+```
+
+To try it without configuring anything, the MCP Inspector takes a URL and
+headers in its own UI:
+
+```bash
+npx @modelcontextprotocol/inspector
+```
+
+Whatever you use, the token is a fixed string in that configuration and does
+not refresh itself — see below.
 
 Tokens live in `~/.lab/token.json`, readable only by you. `--logout` deletes
 them; so does deleting the file.
@@ -54,17 +95,17 @@ particular thing, are two different questions — the recipes that use this come
 back to that distinction, because most access-control mistakes live in the gap
 between them.
 
-### Why the token has to be pasted at all
+### Why you re-run it
 
-Most MCP clients hold a fixed `Authorization` header, so when the access token
-is rotated the client keeps sending the old one and starts failing. Re-run
-`--mcp` with the same arguments and it repoints the client in one step.
+Your sign-in refreshes on its own — that part is automatic and you will not be
+asked for the browser again.
 
-This is friction we would rather not have. It exists because an Agent Gateway
-surface cannot yet tell an MCP client where to sign in — so the client cannot
-run the sign-in itself, and something has to hand it a token. When that gap
-closes, clients will sign in and refresh on their own, and this script stops
-being part of any recipe.
+What does not refresh is the **copy** your MCP client was given. Most clients
+hold a fixed `Authorization` header, set once when the server was added, so
+when your token rotates the client carries on sending the old one and starts
+failing. Nothing reaches into its configuration to update it.
+
+Re-run `--mcp` with the same arguments and it repoints the client in one step.
 
 ### If it will not sign you in
 

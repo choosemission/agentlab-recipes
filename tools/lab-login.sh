@@ -3,9 +3,10 @@
 #
 #   ./lab-login.sh                     # sign in, or quietly refresh
 #   ./lab-login.sh --status            # who am I, and for how long
+#   ./lab-login.sh --claims            # show what the token actually says
 #   ./lab-login.sh --header            # print an Authorization header line
 #   ./lab-login.sh --token             # print the raw access token
-#   ./lab-login.sh --mcp NAME URL      # point an MCP client at a surface
+#   ./lab-login.sh --mcp NAME URL      # point Claude Code at a surface
 #   ./lab-login.sh --consent URL       # approve a surface's upstream credential
 #   ./lab-login.sh --logout            # forget the stored tokens
 #
@@ -220,16 +221,37 @@ consent() {
 
 update_mcp() {
     local name="$1" url="$2" tok
+
+    # Mint a fresh one rather than handing over whatever is left of the
+    # current token. The client keeps a *copy* and cannot refresh it, so a
+    # token with four minutes left becomes four minutes of working MCP.
+    try_refresh || true
+
+    # This shells out to Claude Code. Every other client is configured by hand,
+    # and there are only three things to know, so say them rather than fail.
     command -v claude >/dev/null || {
-        echo "The 'claude' command is not on your PATH." >&2
-        echo "Add the server by hand with:" >&2
-        echo "  Authorization: Bearer \$($0 --token)" >&2
+        echo "This shortcut drives Claude Code, and 'claude' is not on your PATH." >&2
+        echo >&2
+        echo "Any MCP client needs the same three things:" >&2
+        echo "  transport  HTTP (streamable)" >&2
+        echo "  url        $url" >&2
+        echo "  header     Authorization: Bearer <token>" >&2
+        echo >&2
+        echo "Print the header with:  $0 --header" >&2
         exit 1
     }
     tok=$(stored access_token)
+
+    # User scope, not the default local scope. A surface you reach with your
+    # Lab identity is not a property of whichever directory you happened to be
+    # standing in, and registering it per-directory means re-running this in
+    # each one — with the failure showing up as a stale token that never
+    # updates, because the copy being refreshed is in a config your client is
+    # not reading. Remove from any scope, add back to this one.
     claude mcp remove "$name" >/dev/null 2>&1 || true
-    claude mcp add --transport http "$name" "$url" -H "Authorization: Bearer $tok"
-    echo "Pointed '$name' at $url. Re-run this when it stops working."
+    claude mcp add --transport http --scope user "$name" "$url" -H "Authorization: Bearer $tok"
+    echo "Pointed '$name' at $url, for every project."
+    echo "Re-run this when it stops working."
 }
 
 case "${1:-}" in
@@ -249,6 +271,20 @@ case "${1:-}" in
     else
         echo "Access token expired — the next command will refresh it silently."
     fi
+    ;;
+--claims)
+    ensure_token
+    tok=$(stored access_token)
+    payload=$(claims "$(cut -d. -f2 <<<"$tok")")
+    echo "Your token is a JWT: three base64 parts, signed by the Lab IdP."
+    echo "Anyone can read it. Only the Lab can have produced it."
+    echo
+    jq '{iss, sub, email, email_verified, aud, exp, azp}' <<<"$payload"
+    echo
+    echo "  iss    who issued it — a surface checks this string exactly"
+    echo "  sub    you, permanently, whatever your email later becomes"
+    echo "  email  you, legibly — what a surface files your credentials under"
+    echo "  exp    when it stops working ($(( $(jq -r .exp <<<"$payload") - $(now) ))s from now)"
     ;;
 --header)
     ensure_token
