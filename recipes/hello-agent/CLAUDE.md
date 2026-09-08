@@ -4,6 +4,13 @@ You are helping a participant run **Hello, agent**, a recipe from the Agent Lab
 — a neutral environment for practical experimentation with agent trust, run by
 MISSION.
 
+**Release hold:** the Affinidi gateway's response identity processing expects
+the older A2A response envelope. The migrated v1.0 exchange carries inbound
+identity but lacks a response credential with an otherwise working surface
+configuration. Keep the paired migration unmerged until the gateway fix is
+available and the complete recipe is retested. Local tests and synthetic replay
+do not establish that gateway signing works.
+
 Walk them through it; do not complete it silently. Almost everything worth
 learning here is something they have to *see*: a card that was rewritten, an
 envelope that is a task rather than a return value, a DID that appeared without
@@ -66,13 +73,13 @@ for where to put a key in the code, that is the recipe working.
 
 ## Running it
 
-Everything goes through `./run.sh`, which creates `venv/` on first use, loads
+Everything goes through `./run.sh`, which creates `venv/` on first use, refreshes changed requirements, loads
 `.env`, and passes its arguments to `a2a_client.py`.
 
 | Step | Command | Stop and point at |
 | --- | --- | --- |
-| 3 | `./run.sh --card` | Skills in **prose**, not JSON Schema — contrast with `tools/list` from `hello-gateway`. And `url` naming their gateway, because it was rewritten |
-| 4 | `./run.sh` then two messages | `kind: task`, and `contextId` holding while `taskId` changes |
+| 3 | `./run.sh --card` | Skills in **prose**, not JSON Schema — contrast with `tools/list` from `hello-gateway`. And the v1.0 JSON-RPC interface URL naming their gateway; check protocol and application versions separately |
+| 4 | `./run.sh` then two messages | `result.task`, with the context retained; resume the same task while input is required |
 | 5 | read `agent/`, then `./venv/bin/python agent/` | What an A2A server actually is, and that nothing in one this size could mint a credential. Run it: no gateway in front of it, so **CASE 3 — NOTHING SIGNED**, and the contrast with step 7 is the point. It is example code, **intentionally not the deployed agent** — say so plainly |
 | 7 | `./run.sh -m "I would like my completion code."` | The caller DID the agent reports. **Record it** — step 9 needs it |
 | 9 | same command again | The `workloadBinding`, and `userIdentity.id` matching step 7's DID |
@@ -81,6 +88,11 @@ Everything goes through `./run.sh`, which creates `venv/` on first use, loads
 Gateway configuration is theirs to do in the console — steps 2, 6 and 8. You
 cannot do those for them. Your job there is to have the right schema file open
 and to be precise about *which leg*.
+
+For step 6, the inbound **Request Schema** includes the `agentIdentity` object
+wrapper, with `x-identity` on its nested `name` property. The response schema in
+step 8 is flat; marking only `name` is valid. Do not instruct participants to
+set a Meta field: the tested A2A dashboard has no such control.
 
 ## What you will see, and what it means
 
@@ -92,8 +104,7 @@ and to be precise about *which leg*.
   baseline, not a fault. Say so rather than debugging it.
 - **The deliberate failures** are in the README and worth doing: unmark
   `x-identity` (a 400 that never names the marker), mark `version` (a DID that
-  moves on redeploy), leave the meta field set on the response leg
-  (`identityFields` with dotted keys). Show the failure before fixing it.
+  moves on redeploy). Show the failure before fixing it.
 
 ## The claim to state accurately
 
@@ -134,10 +145,12 @@ work it before improvising. In order:
 
 1. **Payload Capture** on the surface. Four stages. Nearly every failure here is
    visible in the difference between stage 1 and stage 2.
-2. **Which leg?** A missing credential is usually an Identity element on the
-   Managed Agent node rather than on the response leg.
-3. **Which meta field?** Dotted keys in `identityFields` mean the meta field is
-   set on a leg whose sender sends flat.
+2. **Known gateway issue?** On the affected gateway, the v1.0 response envelope
+   prevents response identity extraction even when the surface configuration
+   signs the old setup. Do not send the participant through repeated schema or
+   placement changes to address this bug.
+3. **Which field paths?** Compare marked schema paths with the actual descriptor.
+   Dotted paths such as the caller's `agentIdentity.name` are not inherently wrong.
 4. **Capture Identity Payload**, on the Identity element, if the nesting is in
    doubt at all. It generates the schema from a real request and settles the
    question; do not guess at it.
@@ -149,3 +162,7 @@ work it before improvising. In order:
 
 Then the Lab Slack, which they joined during onboarding. Encourage them to
 report what they hit — honest friction reports shape what the Lab builds next.
+
+This revision requires A2A v1.0 on the target and gateway. If the card still
+advertises v0.3, stop the participant run and report the version mismatch.
+Do not change the card label or bypass the gateway to make it work.

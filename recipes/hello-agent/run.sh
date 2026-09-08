@@ -11,12 +11,18 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-if [ ! -d venv ]; then
+if [ ! -x venv/bin/python ]; then
   echo "Creating venv/ ..."
   python3 -m venv venv
-  ./venv/bin/pip install --quiet --upgrade pip
-  ./venv/bin/pip install --quiet -r requirements.txt
-  echo "Done."
+fi
+
+# Refresh existing clones too: keeping an old venv after git pull must not keep
+# the v0.3 SDK. Write the marker only after a successful dependency install.
+requirements_hash=$(./venv/bin/python -c 'import hashlib; print(hashlib.sha256(open("requirements.txt", "rb").read()).hexdigest())')
+installed_hash=$(cat venv/.requirements.sha256 2>/dev/null || true)
+if [ "$requirements_hash" != "$installed_hash" ]; then
+  ./venv/bin/python -m pip install --quiet -r requirements.txt
+  printf '%s\n' "$requirements_hash" > venv/.requirements.sha256
 fi
 
 # Read .env without sourcing it, so an unquoted value containing spaces —
