@@ -12,7 +12,6 @@ is ours.
 | File here | Upstream path | Upstream commit |
 | --- | --- | --- |
 | `identity/agent-response.schema.json` | `a2a/identity-extension.json` | `b29bf48a45cfcbc1aeafad173b66e0a3a3705d4a` (2026-04-22) |
-| `requirements.txt` (the `a2a-sdk` pin) | `a2a/requirements.txt` | `a516a170be9e3e68a1f54592e128af1c331df37a` (2026-07-15) |
 
 `agent-response.schema.json` is byte-identical to upstream, which is why it has
 no header comment and no trailing newline. It is the schema for the response
@@ -47,7 +46,7 @@ Changed, and why:
 | Adds `--replay` | Renders a saved envelope, so `fixtures/example-response.json` shows what step 9 looks like before it works |
 | Adds `--agent-name` / `--agent-version` | Changing the presented name and watching the DID change is how the recipe's central honest limit is demonstrated in one command |
 | TLS verification **on** by default, `--insecure` to opt out | Upstream hard-codes `verify=False` and suppresses the warning. The recipe calls an HTTPS gateway; shipping participants a client that never checks a certificate teaches the wrong habit |
-| Drops the silent localhost card rewrite; warns on a host mismatch instead | A card whose `url` is not the address you called is a *finding* in this recipe — the gateway rewrites cards, so a mismatch means the surface did not. Upstream's silent fix hides exactly the thing step 3 exists to show. The rewrite is kept only for a card advertising localhost, which is the local-debugging path, and it says when it fires |
+| Rejects interface URLs outside the called access point | Prevents discovery from silently routing around the gateway; applies to localhost cards too |
 | `argparse`, env-var defaults, structured exits | It is now configured by `.env`, and run by an agent as well as a person |
 
 Not changed, deliberately: there is no model in it, and nothing
@@ -94,3 +93,17 @@ When a vendored file changes upstream, `git log` on the recorded commit shows
 what moved. Re-vendor the unchanged files directly; for `a2a_client.py`, diff
 upstream against the recorded commit and apply only what the table above does
 not deliberately override.
+
+## A2A v1.0 migration — 7 September 2026
+
+The client and example server use `a2a-sdk==1.1.2`, replacing the inherited
+`0.3.25` pin. The server uses protobuf types and route factories. The client
+selects a v1.0 JSON-RPC interface and keeps the raw HTTP JSON-RPC response
+visible while validating request parameters with the SDK. It sends the version
+header explicitly, parses v1.0 wrappers and task states, and rejects interface
+URLs outside the called access point. The inherited SDK pin came from upstream
+`a2a/requirements.txt` at `a516a170be9e3e68a1f54592e128af1c331df37a`.
+No Affinidi identity descriptor or extension URI was changed.
+
+The replay fixture's protocol envelope was migrated; the synthetic credential
+metadata was retained. Its presence does not claim gateway v1.0 verification.

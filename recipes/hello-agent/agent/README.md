@@ -33,7 +33,7 @@ async def execute(self, context, event_queue):
     await updater.complete(updater.new_agent_message([...]))
 ```
 
-That is why the client prints `kind: task` rather than a result. A call is a task
+That is why the client prints `result.task` rather than a result. A call is a task
 with a lifecycle — it can be polled, answered over several turns, or cancelled —
 where an MCP `tools/call` is a function that returns once. `complete()` is the
 short path; `start_work()`, `requires_input()`, `failed()` and `add_artifact()`
@@ -102,7 +102,7 @@ Smallest useful changes first:
    no schema to fill in, and the description is what another agent reads to
    decide whether to call you.
 3. **Answer over more than one turn.** Swap `updater.complete(reply)` for
-   `updater.requires_input(reply, final=True)` and the task parks until the
+   `updater.requires_input(reply)` and the task parks until the
    caller replies. Nothing is remembered for you between turns — read what you
    need off the incoming message each time, or put it in the task store.
 4. **Change the agent's own identity.** `AGENT_IDENTITY` is an interface, not a
@@ -131,3 +131,6 @@ the Lab's own server. The extension URIs, the card's extension block and the fla
 identity descriptor in the reply's metadata are carried across unchanged, because
 the gateway matches on them. See [`../PROVENANCE.md`](../PROVENANCE.md) and the
 repository's `NOTICE`.
+
+This example now uses SDK `1.1.2` and advertises A2A protocol `1.0`. Requests
+use `SendMessage` and `A2A-Version: 1.0`; text parts have no `kind` field.

@@ -46,9 +46,8 @@ Nothing in this file produces a credential: no model, no reasoning, no signing
 key, just dictionary reading. Everything verifiable in the recipe came from the
 gateway, and an agent this size is where that is easy to see.
 
-Pinned against `a2a-sdk==0.3.25` and `uvicorn==0.38.0` — what the deployed target
-and Affinidi's own sample use, because a minor version that moved a field would
-break the envelope this recipe is about.
+Uses `a2a-sdk==1.1.2` for A2A protocol v1.0, with `uvicorn==0.38.0`.
+The Affinidi extension URIs and identity descriptors retain their original shape.
 """
 
 from __future__ import annotations
@@ -56,10 +55,12 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from google.protobuf.json_format import MessageToDict
+from a2a.helpers import new_task_from_user_message
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import TaskUpdater
-from a2a.types import AgentCapabilities, AgentCard, AgentExtension, AgentSkill, Part, TextPart
+from a2a.types import AgentCapabilities, AgentCard, AgentExtension, AgentSkill, AgentInterface, Part, TaskNotCancelableError
 
 #: Verbatim from upstream, and the reason this file exists: these are the keys
 #: the gateway matches on. Your client puts its unsigned descriptor under the
@@ -98,10 +99,13 @@ def create_agent_card(public_url: str) -> AgentCard:
             "it saw. It runs no model: everything verifiable about your call was added by the "
             "gateway, not by this agent."
         ),
-        url=public_url.rstrip("/") + "/",
+        supported_interfaces=[AgentInterface(
+            url=public_url.rstrip("/") + "/",
+            protocol_binding="JSONRPC", protocol_version="1.0",
+        )],
         version=AGENT_IDENTITY["version"],
-        default_input_modes=["text"],
-        default_output_modes=["text"],
+        default_input_modes=["text/plain"],
+        default_output_modes=["text/plain"],
         capabilities=AgentCapabilities(
             streaming=False,
             extensions=[
@@ -158,8 +162,8 @@ def read_caller_identity(metadata: Any) -> dict[str, Any]:
     """
     metadata = metadata if isinstance(metadata, dict) else {}
 
-    # Flat, or wrapped in `agentIdentity` — the meta field you set on the
-    # Identity element decides which, and both are worth showing back.
+    # Callers may send a flat descriptor or one wrapped in `agentIdentity`.
+    # Show either shape back to the participant.
     descriptor = metadata.get(SELF_ASSERTED_EXTENSION)
     descriptor = descriptor if isinstance(descriptor, dict) else {}
     inner = descriptor.get("agentIdentity")
@@ -241,7 +245,7 @@ class IdentityMirrorExecutor(AgentExecutor):
     An executor is the whole contract. A2A hands you the request and an event
     queue, and you publish what happens onto that queue; **you do not return a
     value**. That is the protocol's central choice, and the reason the client
-    prints `kind: task` instead of a result: a call becomes a task with a
+    prints `result.task` instead of a result: a call becomes a task with a
     lifecycle, which can be polled, answered over several turns, or cancelled.
 
     Subclass it, implement these two methods, hand it to a request handler (see
@@ -263,22 +267,18 @@ class IdentityMirrorExecutor(AgentExecutor):
         # identity is readable here at all — it rides with the message rather
         # than in a header the agent would have to be told about.
         message = context.message
-        identity = read_caller_identity(message.metadata if message else None)
+        identity = read_caller_identity(MessageToDict(message.metadata) if message else None)
 
         # `TaskUpdater` is how you publish a task's progress onto the queue.
         # This agent answers in one turn, so it goes straight to `completed`.
         # The other endings, all one call each:
         #
         #   await updater.start_work()             -> 'working', before a long job
-        #   await updater.requires_input(reply,
-        #                                final=True)  -> 'input-required': ask a
+        #   await updater.requires_input(reply)    -> 'input-required': ask a
         #                                             question and stop, then pick
         #                                             the answer up on the next
         #                                             message in this context. No
         #                                             MCP equivalent exists.
-        #                                             `final` closes the stream,
-        #                                             which a non-streaming agent
-        #                                             wants
         #   await updater.failed(reply)            -> 'failed'
         #   await updater.add_artifact([...])      -> a named output alongside
         #                                             the reply, for results a
@@ -288,24 +288,25 @@ class IdentityMirrorExecutor(AgentExecutor):
         # A streaming agent calls these as it goes and the client watches the
         # task change state; this card advertises `streaming=False`, so the
         # client gets one final task instead.
-        updater = TaskUpdater(event_queue, context.task_id, context.context_id)
+        task = context.current_task or new_task_from_user_message(message)
+        if context.current_task is None:
+            await event_queue.enqueue_event(task)
+        updater = TaskUpdater(event_queue, task.id, task.context_id)
         reply = updater.new_agent_message(
-            [Part(root=TextPart(kind="text", text=describe(identity)))],
+            [Part(text=describe(identity))],
             # The agent's own descriptor on the way out, which is what a
             # response-leg Identity element reads to derive a DID for the agent.
             #
-            # Flat under the extension URI, and NOT wrapped in `agentIdentity`:
-            # that element is configured with an empty meta field to match. Wrap
-            # it here and every `identityFields` comes back with dotted keys.
+            # Flat under the extension URI, matching the response identity schema.
             metadata={SELF_ASSERTED_EXTENSION: dict(AGENT_IDENTITY)},
         )
         # Declaring which extensions this reply uses. Advertised on the card,
         # named again here on the message that actually carries one.
-        reply.extensions = [SELF_ASSERTED_EXTENSION]
+        reply.extensions.append(SELF_ASSERTED_EXTENSION)
         await updater.complete(reply)
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         # Required by the interface, and honest to refuse: an agent that answers
         # in one turn has nothing to interrupt. A long-running one would stop its
         # work here and publish `canceled`.
-        raise Exception("cancel not supported")
+        raise TaskNotCancelableError("This mirror agent cannot cancel tasks.")

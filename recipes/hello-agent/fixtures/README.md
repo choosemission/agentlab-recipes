@@ -21,3 +21,6 @@ The two DIDs to look at are `credentialSubject.id`, which is the surface DID on
 the response leg, and `workloadBinding.userIdentity.id`, which is the DID minted
 on the inbound leg from your own message. They differ, and the second one is
 you.
+
+The fixture uses the A2A v1.0 envelope. Its identity data is synthetic and
+is not evidence of a v1.0 exchange through a deployed Affinidi gateway.

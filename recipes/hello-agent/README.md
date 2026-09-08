@@ -1,5 +1,14 @@
 # Hello, agent
 
+This revision uses **A2A protocol v1.0** with SDK `1.1.2`. It requires the
+matching hosted server and a gateway that supports v1.0 discovery and identity
+processing. **Release is on hold:** the tested Affinidi gateway still expects
+the older response envelope when extracting and signing response identity.
+Inbound identity works, but the v1.0 response credential is absent with the same
+surface configuration that signs the old setup. Keep this migration unmerged
+until Affinidi fixes response processing and the complete recipe is retested.
+
+
 The recipe after `hello-gateway`. You put your own Agent Gateway in front of an
 A2A agent the Lab hosts, then configure two Identity elements — and an exchange
 between two parties that have never met produces a **signed record of which
@@ -56,7 +65,7 @@ artefacts is worth more than a page of theory.
 ./run.sh --help
 ```
 
-First run creates `venv/` and installs the two dependencies. There is no model
+First run creates `venv/` and installs the pinned dependencies. There is no model
 key, and there is no model — the client is a REPL that prints what came back.
 That is deliberate: everything interesting in the output was put there by the
 gateway, and a caller clever enough to interpret it would make that impossible
@@ -91,11 +100,11 @@ saying what the agent does. Put that beside the `tools/list` output from
 fills in its arguments; A2A advertises a capability and the **callee** works out
 how. You do not call `mint_code(user)`. You ask, in prose, and it decides.
 
-**`url` points at your gateway, not at the Lab.** You fetched the card through
+**The v1.0 JSON-RPC interface URL points at your gateway.** You fetched the card through
 your access point and the gateway rewrote it on the way out. Discovery itself
 now routes through the governed door, and the Lab's address for this agent never
-reached you. The client prints a warning if it does not match — that is a
-finding, not noise.
+reached you. The client stops if the selected interface is outside your access point.
+Check `A2A version 1.0` separately from the application version.
 
 ## 4. Send a message, and read the envelope
 
@@ -106,8 +115,8 @@ finding, not noise.
 Say anything. What comes back is not a return value:
 
 ```
-  kind        task
-  state       completed
+  result      task
+  state       TASK_STATE_COMPLETED
   taskId      …
   contextId   …
   history     1 message(s)
@@ -169,10 +178,34 @@ will not answer otherwise.
 On the **Access Point → Managed Agent** leg, drag on an **Identity** element:
 
 - Extraction type: **Payload**
-- Meta field: `agentIdentity`
-- Schema: [`identity/caller-inbound.schema.json`](identity/caller-inbound.schema.json)
+- Request Schema: paste the contents of [`identity/caller-inbound.schema.json`](identity/caller-inbound.schema.json):
 
-The schema marks `name` with `"x-identity": true` and leaves `version` alone.
+```json
+{
+  "type": "object",
+  "properties": {
+    "agentIdentity": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "x-identity": true
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    }
+  }
+}
+```
+
+Keep the `agentIdentity` wrapper in the schema. The schema marks
+`agentIdentity.name` with `"x-identity": true`
+and leaves `version` alone.
 That marker is the entire mechanism — a schema that describes the payload and
 marks nothing is rejected on save. [`identity/README.md`](identity/README.md)
 has the why, and the reason `version` is deliberately left out.
@@ -206,11 +239,15 @@ gateway, *outbound* means Transit Points, and the canvas invites the other
 reading.
 
 - Extraction type: **Payload**
-- Meta field: **empty**
 - Schema: [`identity/agent-response.schema.json`](identity/agent-response.schema.json)
 
-Empty, because the agent sends its descriptor flat where you send yours nested.
-Two ends, two schemas.
+The agent sends its descriptor flat, so this schema has `name`, `model` and
+`role` directly under `properties`. Marking only `name` is also valid; the
+bundled schema chooses all three fields. There is no separate Meta field
+control in the tested A2A dashboard.
+
+The response signing described in step 9 requires the Affinidi fix noted at the
+top of this recipe. Changing a matching schema does not resolve that bug.
 
 ## 9. Run again, and read the workload binding
 
@@ -297,12 +334,6 @@ save, then run with `--agent-version 1.0.1`. Your DID changes. This is why every
 record keyed to the old one now refers to nobody, and why the schemas here mark
 only stable, configuration-level fields.
 
-**Leave the meta field set on the response leg.** Put `agentIdentity` back into
-step 8's meta field. The credential comes back with `identityFields` holding
-dotted keys — `agentIdentity.name` — which is the gateway telling you the paths
-it extracted were relative to a prefix the sender never used. Learn to read that
-one; it is the fastest diagnosis in the whole exercise.
-
 ---
 
 ## When it fails unexpectedly
@@ -319,10 +350,10 @@ with a timestamp when you ask for help.
 | Card fetch fails, messages never sent | Step 2.3 — the endpoint URL is the host without its path |
 | The agent's own 401, through the surface | Step 2.4 — header name or secret value mismatch. Two strings to compare, not a gateway to audit |
 | `Invalid JSON-RPC request` | You did a plain GET on the message endpoint |
-| Card `url` warning from the client | The surface is serving the card through without rewriting it |
+| Card interface URL mismatch | The v1.0 interface URL is outside the access point; check card rewriting |
 | 400 on save, "no identity fields are declared" | Nothing in the schema carries `"x-identity": true` |
-| `identityFields` with dotted keys | Meta field set on a leg whose sender is flat (step 8) |
-| No credential on the reply at all | The Identity element is on the Managed Agent node, not on the response leg |
+| `identityFields` with dotted keys | These are extracted field paths; `agentIdentity.name` is expected for this caller. Compare them with the descriptor and schema before treating them as an error |
+| Client reports no response credential | Known Affinidi response-envelope bug on the tested gateway. The v1.0 reply is in `result.task.status.message`; the gateway must process that location to add the credential. A matching schema and successful inbound signing do not resolve this bug |
 | A DID that changes every run | A moving value is marked as an identity field |
 | No code, and the agent says why | Working as intended. Finish step 6 or 8 |
 
@@ -351,3 +382,30 @@ Apache-2.0. Parts of this directory are vendored from Affinidi's
 [affinidi-labs-tgw-get-started](https://github.com/affinidi/affinidi-labs-tgw-get-started);
 [`PROVENANCE.md`](PROVENANCE.md) records what, from which commit, and what was
 changed.
+
+## Protocol and dependency checks
+
+`--card` prints **App version** and **A2A version** separately. The selected
+`supportedInterfaces` entry must advertise `protocolVersion: "1.0"` and
+`protocolBinding: "JSONRPC"`. The client sends `SendMessage` with
+`A2A-Version: 1.0`, and reads `result.task` or `result.message`. It rejects
+a v0.3-only card and stops if discovery sends it outside the access point.
+
+For an existing clone, pull the update and run `./run.sh --help`; the launcher
+refreshes dependencies when `requirements.txt` changes. To work on the code:
+
+```bash
+./venv/bin/python -m pip install -r requirements-dev.txt
+./venv/bin/python -m pytest
+```
+
+The interactive client keeps the same task when its state is
+`TASK_STATE_INPUT_REQUIRED` or `TASK_STATE_AUTH_REQUIRED`. After completion,
+the next message starts a new task within the same context. A JSON-RPC error
+causes a one-message invocation to exit unsuccessfully, even with HTTP 200.
+
+To regenerate the pins from the repository root:
+
+```bash
+uv pip compile --universal --python-version 3.10 recipes/hello-agent/requirements.in -o recipes/hello-agent/requirements.txt
+```
