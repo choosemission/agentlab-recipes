@@ -92,8 +92,8 @@ and to be precise about *which leg*.
   baseline, not a fault. Say so rather than debugging it.
 - **The deliberate failures** are in the README and worth doing: unmark
   `x-identity` (a 400 that never names the marker), mark `version` (a DID that
-  moves on redeploy), leave the meta field set on the response leg
-  (`identityFields` with dotted keys). Show the failure before fixing it.
+  moves on redeploy), swap the two schemas between the legs (extraction finds
+  nothing, and nothing says so). Show the failure before fixing it.
 
 ## The claim to state accurately
 
@@ -136,8 +136,11 @@ work it before improvising. In order:
    visible in the difference between stage 1 and stage 2.
 2. **Which leg?** A missing credential is usually an Identity element on the
    Managed Agent node rather than on the response leg.
-3. **Which meta field?** Dotted keys in `identityFields` mean the meta field is
-   set on a leg whose sender sends flat.
+3. **Which schema, on which leg?** Each schema must describe the descriptor as
+   *its own* sender writes it — nested under `agentIdentity` inbound, flat on
+   the response leg. A mismatch extracts nothing and produces no error.
+   `identityFields` coming back as `agentIdentity.name` on the inbound leg is
+   correct, not a fault.
 4. **Capture Identity Payload**, on the Identity element, if the nesting is in
    doubt at all. It generates the schema from a real request and settles the
    question; do not guess at it.

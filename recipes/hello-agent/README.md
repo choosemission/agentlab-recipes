@@ -169,13 +169,23 @@ will not answer otherwise.
 On the **Access Point → Managed Agent** leg, drag on an **Identity** element:
 
 - Extraction type: **Payload**
-- Meta field: `agentIdentity`
 - Schema: [`identity/caller-inbound.schema.json`](identity/caller-inbound.schema.json)
 
-The schema marks `name` with `"x-identity": true` and leaves `version` alone.
-That marker is the entire mechanism — a schema that describes the payload and
-marks nothing is rejected on save. [`identity/README.md`](identity/README.md)
-has the why, and the reason `version` is deliberately left out.
+A caller self-attests by putting a descriptor in its **message metadata**, under
+the extension URI `https://fabric.affinidi.io/extensions/agent-identity/v1`. The
+identity element is only ever about the fields under that key, and the schema is
+what that object has to look like.
+
+The schema describes the descriptor **exactly as this client sends it** — nested
+under `agentIdentity`, because that is how the client writes it — and marks
+`name` with `"x-identity": true` while leaving `version` alone. That marker is
+the entire mechanism: a schema that describes the payload and marks nothing is
+rejected on save. [`identity/README.md`](identity/README.md) has the why, and
+the reason `version` is deliberately left out.
+
+The field it extracts is therefore `agentIdentity.name`, and that is the key you
+will see come back in the credential. A dotted key is what a nested descriptor
+looks like, not a fault.
 
 ## 7. Run again, and let the agent tell you what it saw
 
@@ -206,11 +216,12 @@ gateway, *outbound* means Transit Points, and the canvas invites the other
 reading.
 
 - Extraction type: **Payload**
-- Meta field: **empty**
 - Schema: [`identity/agent-response.schema.json`](identity/agent-response.schema.json)
 
-Empty, because the agent sends its descriptor flat where you send yours nested.
-Two ends, two schemas.
+A different schema from step 6, because the two ends of this exchange write
+their descriptors differently: you nest yours under `agentIdentity`, the agent
+sends its own flat. Each schema describes what its own sender actually puts on
+the wire. Two ends, two schemas.
 
 ## 9. Run again, and read the workload binding
 
@@ -297,11 +308,14 @@ save, then run with `--agent-version 1.0.1`. Your DID changes. This is why every
 record keyed to the old one now refers to nobody, and why the schemas here mark
 only stable, configuration-level fields.
 
-**Leave the meta field set on the response leg.** Put `agentIdentity` back into
-step 8's meta field. The credential comes back with `identityFields` holding
-dotted keys — `agentIdentity.name` — which is the gateway telling you the paths
-it extracted were relative to a prefix the sender never used. Learn to read that
-one; it is the fastest diagnosis in the whole exercise.
+**Put the wrong schema on a leg.** Paste the flat response-leg schema onto the
+inbound element, or the nested inbound one onto the response leg. Nothing about
+the save complains — the schema is valid JSON Schema either way — and the
+extraction quietly finds nothing, because it is looking for `name` where the
+sender wrote `agentIdentity.name`, or the other way round. This is the failure
+mode with no error message, and the only reliable answer to it is **Capture
+Identity Payload**: capture what the sender really sends, and generate the
+schema from that rather than reasoning about it.
 
 ---
 
@@ -321,7 +335,7 @@ with a timestamp when you ask for help.
 | `Invalid JSON-RPC request` | You did a plain GET on the message endpoint |
 | Card `url` warning from the client | The surface is serving the card through without rewriting it |
 | 400 on save, "no identity fields are declared" | Nothing in the schema carries `"x-identity": true` |
-| `identityFields` with dotted keys | Meta field set on a leg whose sender is flat (step 8) |
+| No identity resolved, and no error anywhere | The schema does not match how that sender nests. Capture Identity Payload settles it |
 | No credential on the reply at all | The Identity element is on the Managed Agent node, not on the response leg |
 | A DID that changes every run | A moving value is marked as an identity field |
 | No code, and the agent says why | Working as intended. Finish step 6 or 8 |

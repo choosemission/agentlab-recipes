@@ -79,8 +79,8 @@ def build_message_payload(
     """Build the A2A message, with this client's self-description attached.
 
     The metadata envelope is upstream's, unchanged: the descriptor nests under
-    `agentIdentity`, which is why the inbound Identity element needs its meta
-    field set to `agentIdentity` rather than left empty.
+    `agentIdentity`, so the schema on your inbound Identity element describes
+    that wrapper, and the field it extracts is `agentIdentity.name`.
 
     Note what is NOT marked as an identity field by the schema you will paste:
     `version` is sent, and deliberately not extracted. A DID that changes every
@@ -235,9 +235,10 @@ def report(response_json: dict[str, Any], show_raw: bool = True) -> dict[str, st
             for line in json.dumps(subject["identityFields"], indent=2, sort_keys=True).splitlines():
                 print(f"    {line}")
             print()
-            print("  Dotted keys here mean the meta field is still set on the")
-            print("  response leg. The agent sends its descriptor flat, so that")
-            print("  field must be empty.")
+            print("  The response leg resolved an identity, so the schema matches")
+            print("  what the agent sends. What is missing is the per-request")
+            print("  binding that ties it to your caller DID — look for Workload")
+            print("  Binding on that leg.")
     print(RULE + "\n")
 
     state = (result.get("status") or {}).get("state")

@@ -1,10 +1,6 @@
 {
   "type": "object",
   "properties": {
-    "role": {
-      "type": "string",
-      "x-identity": true
-    },
     "name": {
       "type": "string",
       "x-identity": true
@@ -12,11 +8,18 @@
     "model": {
       "type": "string",
       "x-identity": true
+    },
+    "role": {
+      "type": "string",
+      "x-identity": true
+    },
+    "version": {
+      "type": "string"
     }
   },
   "required": [
-    "role",
     "name",
-    "model"
+    "model",
+    "role"
   ]
 }

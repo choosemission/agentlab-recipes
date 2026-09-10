@@ -158,8 +158,8 @@ def read_caller_identity(metadata: Any) -> dict[str, Any]:
     """
     metadata = metadata if isinstance(metadata, dict) else {}
 
-    # Flat, or wrapped in `agentIdentity` — the meta field you set on the
-    # Identity element decides which, and both are worth showing back.
+    # Flat, or wrapped in `agentIdentity` — senders differ, and both are worth
+    # showing back. This client wraps; this agent's own replies do not.
     descriptor = metadata.get(SELF_ASSERTED_EXTENSION)
     descriptor = descriptor if isinstance(descriptor, dict) else {}
     inner = descriptor.get("agentIdentity")
@@ -294,9 +294,9 @@ class IdentityMirrorExecutor(AgentExecutor):
             # The agent's own descriptor on the way out, which is what a
             # response-leg Identity element reads to derive a DID for the agent.
             #
-            # Flat under the extension URI, and NOT wrapped in `agentIdentity`:
-            # that element is configured with an empty meta field to match. Wrap
-            # it here and every `identityFields` comes back with dotted keys.
+            # Flat under the extension URI, and NOT wrapped in `agentIdentity`
+            # — which is why the response-leg schema is flat where the inbound
+            # one nests. Change the shape here and that schema has to follow.
             metadata={SELF_ASSERTED_EXTENSION: dict(AGENT_IDENTITY)},
         )
         # Declaring which extensions this reply uses. Advertised on the card,
