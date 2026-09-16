@@ -181,6 +181,8 @@ You add two Identity elements, one on each leg of the same surface, and each
 takes a different schema from the [`identity/`](identity/) folder in this
 recipe's directory, `agentlab-recipes/recipes/hello-agent/identity/`.
 
+![The Hello A2A Agent Surface. A Human uses a Caller, labelled External Agent, which calls the Access Point. Inside the surface, the inbound leg runs from the Access Point to the Managed Agent with an Identity element on it, and the response leg runs back from the Managed Agent to the Access Point with a second Identity element on it. The Managed Agent forwards to the External Target, the Lab's agent endpoint, drawn outside the surface.](images/surface.png)
+
 A message travels from your client to the Access Point, along the **inbound
 leg** to the Managed Agent and on to the Lab's agent. The reply comes back along
 the **response leg** to the Access Point and your client.
