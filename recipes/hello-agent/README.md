@@ -35,12 +35,22 @@ cp .env.example .env    # then fill in A2A_ACCESS_POINT after step 2
 
 Before configuring anything in front of the agent, check the agent itself is up.
 Separating "is the backend reachable" from "is the trust layer working" turns a
-five-layer debug into two one-layer ones:
+five-layer debug into two one-layer ones. Put the resource URL from the recipe
+page in a variable first, so there is no placeholder left to paste:
 
+```bash
+# The Agent URL from the recipe page. If yours differs, use yours.
+RESOURCE_URL=https://agentlab.choosemission.com/hello-a2a
+
+# The card: open to anyone. Expect JSON.
+curl -s "$RESOURCE_URL/.well-known/agent-card.json"
+
+# The message path: closed. Expect 401, because you are not a gateway.
+curl -s -o /dev/null -w '%{http_code}\n' -X POST "$RESOURCE_URL"
 ```
-GET  <resource URL>/.well-known/agent-card.json   → the card
-POST <resource URL>                               → 401, because you are not a gateway
-```
+
+That 401 is the door your gateway holds the key to. You do not need to call the
+Lab's URL directly again.
 
 ---
 
@@ -134,19 +144,22 @@ you have been making since step 3 without seeing. The other is what is *not*
 there: nothing in an agent this size could mint a credential, so everything that
 arrives signed in Phase B has to have come from the gateway.
 
-Run it, too — one command, and worth the minute:
+### Optional experiment: run the example agent locally
+
+**You can skip this and still complete the recipe.** Everything from step 6 on
+calls the Lab's hosted agent through your surface, never this local copy.
+
+If you have a spare minute, run it in one terminal and call it from another:
 
 ```bash
-./venv/bin/python agent/       # then, elsewhere: ./run.sh -m "hello" http://localhost:8080/
+./venv/bin/python agent/                    # terminal 1: listens on port 8080
+./run.sh -m "hello" http://localhost:8080/   # terminal 2
 ```
 
 Called directly it answers **CASE 3 — NOTHING SIGNED**, every time, because
 there is no gateway in the path to sign anything. Same code, no gateway, no
-identity. In step 7 you will send the same message through your surface and get
-CASE 2, and the difference will be entirely the gateway's doing.
-
-Then call the Lab's resource URL directly, without a key, and watch the 401
-arrive — the door the gateway holds the key to.
+identity. In step 7 you will send a message through your surface and get a
+signed presentation, and the difference will be entirely the gateway's doing.
 
 > **`agent/` is example code, and intentionally not the agent you are calling.**
 > The Lab hosts that one. This is the smallest server that still speaks the
@@ -163,6 +176,26 @@ The agent's declared skill is issuing your completion code, and it issues one
 only to a caller whose gateway vouches for them. So you are not configuring
 identity because a recipe told you to. You are configuring it because the agent
 will not answer otherwise.
+
+You add two Identity elements, one on each leg of the same surface, and each
+takes a different schema from the [`identity/`](identity/) folder in this
+recipe's directory, `agentlab-recipes/recipes/hello-agent/identity/`.
+
+![The Hello A2A Agent Surface. A Human uses a Caller, labelled External Agent, which calls the Access Point. Inside the surface, the inbound leg runs from the Access Point to the Managed Agent with an Identity element on it, and the response leg runs back from the Managed Agent to the Access Point with a second Identity element on it. The Managed Agent forwards to the External Target, the Lab's agent endpoint, drawn outside the surface.](images/surface.png)
+
+A message travels from your client to the Access Point, along the **inbound
+leg** to the Managed Agent and on to the Lab's agent. The reply comes back along
+the **response leg** to the Access Point and your client.
+
+| Step | Leg | Direction | Schema for its Identity element |
+| --- | --- | --- | --- |
+| 6 | Inbound | Access Point → Managed Agent | `caller-inbound.schema.json` |
+| 8 | Response | Managed Agent → Access Point | `agent-response.schema.json` |
+
+> **Do not use `agent-response.schema.json` on the inbound leg.** It describes
+> the agent's flat descriptor, which your client does not send, so every message
+> through the surface is refused with
+> `422 identity_validation_failed: Identity field 'name' not found in payload`.
 
 ## 6. Identify the caller — an Identity element on the inbound leg
 
@@ -189,8 +222,14 @@ looks like, not a fault.
 
 ## 7. Run again, and let the agent tell you what it saw
 
-```bash
-./run.sh -m "I would like my completion code."
+From here the agent asks you a question before it hands over a code, so use the
+interactive prompt rather than a one-shot command. Start it and leave it open
+until step 10:
+
+```
+./run.sh
+
+you > I would like my completion code.
 ```
 
 Your message now reaches the agent carrying a gateway-signed Verifiable
@@ -200,6 +239,14 @@ reports what arrived, and names your caller DID. **Write that DID down.**
 
 You did not send it. Your gateway minted it, from fields you were already
 sending about yourself.
+
+Instead of a code, the agent asks what name your gateway signed for you. Leave
+the question open while you do steps 8 and 9; you answer it at the same prompt
+in step 10.
+
+> **`./run.sh -m "…"` sends one message and exits.** It suits steps where
+> nothing comes back asking for an answer. When the agent asks a question, stay
+> in `./run.sh` and type the answer at the next `you >` prompt.
 
 ## 8. Identify the agent — a second Identity element on the response leg
 
@@ -223,13 +270,15 @@ their descriptors differently: you nest yours under `agentIdentity`, the agent
 sends its own flat. Each schema describes what its own sender actually puts on
 the wire. Two ends, two schemas.
 
-## 9. Run again, and read the workload binding
+## 9. Send again, and read the workload binding
 
-```bash
-./run.sh -m "I would like my completion code."
+At the prompt you left open in step 7:
+
+```
+you > I would like my completion code.
 ```
 
-The reply now carries
+The agent asks its question again — that is expected. The reply now carries
 `https://fabric.affinidi.io/extensions/agent-identity-credential/v1`, and its
 subject is not a description of the agent. It is a **workload binding**:
 
@@ -255,15 +304,53 @@ If you want to see the shape before you have earned it:
 ./run.sh --replay fixtures/example-response.json
 ```
 
-## 10. Claim and spend your code
+## 10. Answer the question, and take your code
 
-The agent hands over six digits. Submit them to the Lab catalogue with
-`submit_completion_code`, naming the recipe id **`hello-agent`** as well as the
-code.
+At the same prompt, reply with the name your gateway signed:
 
-Codes are anonymous, last an hour, and can be spent once. The catalogue verified
-your Lab token, so it knows who you are; the code says a properly configured
-gateway got through. Neither is worth much alone.
+```
+you > <the name your gateway signed for you>
+```
+
+Everything you need to answer is in your own client and your own surface. If you
+cannot see where, reply `hint` and the agent traces the name for you. Answer in
+prose if you like — it matches loosely. What it checks is what you *say* against
+what your gateway *signed* on the message carrying your answer, which is the
+pattern worth taking away.
+
+A correct answer gets six digits back. Codes are anonymous, last an hour, and
+can be spent once.
+
+## 11. Submit the code to the Lab catalogue
+
+**`submit_completion_code` is an MCP tool, not a shell command. Do not type it
+into a terminal.** You call it through an MCP client connected to the Lab
+catalogue.
+
+> **Not connected, switching client, or told `not-signed-in`?** Follow
+> [Connect your agent to the Lab](https://agentlab.choosemission.com/setup/connect-to-the-lab)
+> first. It covers Claude Code, VS Code and other clients, and how to reconnect.
+> In VS Code, this repository's [`.vscode/mcp.json`](../../.vscode/mcp.json)
+> already names the catalogue.
+
+The tool takes two arguments:
+
+| Argument | Value |
+| --- | --- |
+| `recipe` | `hello-agent` |
+| `code` | the six digits the agent gave you |
+
+In practice you ask your agent, and it makes the call:
+
+> Use the lab-catalog tool `submit_completion_code` with recipe `hello-agent`
+> and code `123456`.
+
+A browser may open for you to sign in with your Lab account, and most clients
+ask you to approve the tool call before it runs. This is the only catalogue tool
+that writes anything, so approve it.
+
+The catalogue verified your Lab token, so it knows who you are; the code says a
+properly configured gateway got through. Neither is worth much alone.
 
 ---
 
@@ -309,13 +396,19 @@ record keyed to the old one now refers to nobody, and why the schemas here mark
 only stable, configuration-level fields.
 
 **Put the wrong schema on a leg.** Paste the flat response-leg schema onto the
-inbound element, or the nested inbound one onto the response leg. Nothing about
-the save complains — the schema is valid JSON Schema either way — and the
-extraction quietly finds nothing, because it is looking for `name` where the
-sender wrote `agentIdentity.name`, or the other way round. This is the failure
-mode with no error message, and the only reliable answer to it is **Capture
-Identity Payload**: capture what the sender really sends, and generate the
-schema from that rather than reasoning about it.
+inbound element. The save does not complain — the schema is valid JSON Schema —
+but every message is then refused with
+`422 identity_validation_failed: Identity field 'name' not found in payload`,
+because the gateway looks for a top-level `name` where your client wrote
+`agentIdentity.name`. The error names the field and not the leg, so it is easy
+to read as a problem with your client. Swap it back and the next message goes
+through.
+
+The same mismatch the other way round — the nested inbound schema on the
+response leg — has not been recorded here with its exact symptom; expect no
+credential on the reply. Whichever leg is wrong, the reliable answer is
+**Capture Identity Payload**: capture what the sender really sends, and generate
+the schema from that rather than reasoning about it.
 
 ---
 
@@ -335,10 +428,15 @@ with a timestamp when you ask for help.
 | `Invalid JSON-RPC request` | You did a plain GET on the message endpoint |
 | Card `url` warning from the client | The surface is serving the card through without rewriting it |
 | 400 on save, "no identity fields are declared" | Nothing in the schema carries `"x-identity": true` |
-| No identity resolved, and no error anywhere | The schema does not match how that sender nests. Capture Identity Payload settles it |
-| No credential on the reply at all | The Identity element is on the Managed Agent node, not on the response leg |
+| `422 identity_validation_failed: Identity field 'name' not found in payload` | `agent-response.schema.json` is on the inbound leg. Put `caller-inbound.schema.json` on the Access Point → Managed Agent leg: your client sends `agentIdentity.name`, not a top-level `name` |
+| No identity resolved, and no error anywhere | A schema is on the wrong leg, or does not match how that sender nests. Check each against the diagram at the start of Phase B, then use Capture Identity Payload |
+| No credential on the reply at all | The second Identity element is not on the Managed Agent → Access Point response leg — often because it was put on the Managed Agent node instead |
 | A DID that changes every run | A moving value is marked as an identity field |
-| No code, and the agent says why | Working as intended. Finish step 6 or 8 |
+| No code, and the agent says why | Working as intended. Finish step 6 or 8, or answer its question (step 10) |
+| `submit_completion_code: command not found` | It is an MCP tool, not a shell command. See step 11 |
+| `wrong-recipe` when you submit | The code is real and unspent. Submit it again naming `hello-agent` |
+| `unknown-code` when you submit | Most likely expired — codes last an hour. Check the digits, then ask the agent for a fresh one |
+| `not-signed-in` when you submit | Your client reached the catalogue without a Lab sign-in. Reconnect it as [Connect your agent to the Lab](https://agentlab.choosemission.com/setup/connect-to-the-lab) describes |
 
 If the agent misbehaves rather than the surface, run the copy in `agent/`
 locally and compare. Two one-layer debugs beat one five-layer debug.

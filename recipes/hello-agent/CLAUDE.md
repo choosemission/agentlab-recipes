@@ -17,11 +17,12 @@ Discovery lives on the Lab's catalogue MCP server, not in this file. If this
 session is not connected:
 
 ```bash
-claude mcp add --transport http lab-catalog https://agentlab.choosemission.com/mcp
+claude mcp add --transport http lab-catalog https://agentlab.choosemission.com/gw/lab-catalog-mcp
 ```
 
-Sign-in opens a browser and they authenticate as themselves — expected, not
-broken. Tell them it is coming. Then `get_started` orients you, and
+That is the only catalogue address; do not use any other. Sign-in opens a
+browser and they authenticate as themselves — expected, not broken. Tell them it
+is coming. Then `get_started` orients you, and
 `get_recipe` with id `hello-agent` returns the catalogue entry.
 
 ## What this recipe is
@@ -33,7 +34,8 @@ agent acted for which caller, produced by configuration rather than code.
 - **Entry point:** `README.md` in this directory. It is the authority; if
   anything here contradicts it, the README wins and this file needs the fix.
 - **Phase A** (steps 1–5, ~15 min) teaches the protocol from artefacts they
-  already have. **Phase B** (steps 6–10, ~45 min) is the identity work.
+  already have. **Phase B** (steps 6–11, ~45 min) is the identity work, the
+  agent's question, and submitting the code.
 
 ## The one thing not to get wrong
 
@@ -44,8 +46,9 @@ proves the agent contributed none of the credentials.
 `agent/` is example code: the smallest A2A server that still speaks this
 protocol, written to be read and built on, and **intentionally not the agent
 they are calling**. Do not present it as the deployed one, and do not treat a
-difference between the two as a finding. Running it on localhost is fine and
-step 5 asks for it. **Pointing a surface at it is not** — that means a tunnel,
+difference between the two as a finding. Running it on localhost is an
+**optional** experiment in step 5 — offer it, and say plainly that skipping it
+does not stop them completing the recipe. **Pointing a surface at it is not** — that means a tunnel,
 and a restarted tunnel invalidates the target URL and the agent card at once.
 
 ## Before running anything
@@ -73,9 +76,11 @@ Everything goes through `./run.sh`, which creates `venv/` on first use, loads
 | --- | --- | --- |
 | 3 | `./run.sh --card` | Skills in **prose**, not JSON Schema — contrast with `tools/list` from `hello-gateway`. And `url` naming their gateway, because it was rewritten |
 | 4 | `./run.sh` then two messages | `kind: task`, and `contextId` holding while `taskId` changes |
-| 5 | read `agent/`, then `./venv/bin/python agent/` | What an A2A server actually is, and that nothing in one this size could mint a credential. Run it: no gateway in front of it, so **CASE 3 — NOTHING SIGNED**, and the contrast with step 7 is the point. It is example code, **intentionally not the deployed agent** — say so plainly |
-| 7 | `./run.sh -m "I would like my completion code."` | The caller DID the agent reports. **Record it** — step 9 needs it |
-| 9 | same command again | The `workloadBinding`, and `userIdentity.id` matching step 7's DID |
+| 5 | read `agent/`; optionally `./venv/bin/python agent/` | What an A2A server actually is, and that nothing in one this size could mint a credential. If they run it (optional): no gateway in front of it, so **CASE 3 — NOTHING SIGNED**. It is example code, **intentionally not the deployed agent** — say so plainly |
+| 7 | `./run.sh`, then `I would like my completion code.` | The caller DID the agent reports. **Record it** — step 9 needs it. The agent then asks a question; keep the prompt open. `-m` sends one message and exits, so it cannot carry the conversation a human needs here |
+| 9 | same message at the same prompt | The `workloadBinding`, and `userIdentity.id` matching step 7's DID |
+| 10 | their answer at the same prompt | Do not answer for them. The point is that they go and find what their gateway signed; `hint` is theirs to ask for |
+| 11 | `submit_completion_code` via `lab-catalog`, with `recipe: hello-agent` and the code | An MCP tool call, not a shell command. They approve the call, and may be asked to sign in |
 | — | `./run.sh --replay fixtures/example-response.json` | The shape of a working step 9, using synthetic placeholder data |
 
 Gateway configuration is theirs to do in the console — steps 2, 6 and 8. You
@@ -92,8 +97,9 @@ and to be precise about *which leg*.
   baseline, not a fault. Say so rather than debugging it.
 - **The deliberate failures** are in the README and worth doing: unmark
   `x-identity` (a 400 that never names the marker), mark `version` (a DID that
-  moves on redeploy), swap the two schemas between the legs (extraction finds
-  nothing, and nothing says so). Show the failure before fixing it.
+  moves on redeploy), put the response schema on the inbound leg (every message
+  refused with `422 identity_validation_failed: Identity field 'name' not found
+  in payload`). Show the failure before fixing it.
 
 ## The claim to state accurately
 
@@ -114,7 +120,7 @@ Lab-wide, and not negotiable:
 
 - **Calls to Lab targets go through the Agent Gateway, and the target admits
   nothing else.** If a call fails, do not route around the gateway and do not
-  try to reach the agent directly except for the deliberate 401 in step 5.
+  try to reach the agent directly except for the deliberate 401 check before step 1.
   Being unable to is the security property this Lab demonstrates. Read the
   refusal, then read Payload Capture: what was sent, what the gateway made of
   it, what arrived, what came back.
@@ -138,7 +144,9 @@ work it before improvising. In order:
    Managed Agent node rather than on the response leg.
 3. **Which schema, on which leg?** Each schema must describe the descriptor as
    *its own* sender writes it — nested under `agentIdentity` inbound, flat on
-   the response leg. A mismatch extracts nothing and produces no error.
+   the response leg. `agent-response.schema.json` on the inbound leg gives
+   `422 identity_validation_failed: Identity field 'name' not found in payload`;
+   other mismatches can extract nothing without an error.
    `identityFields` coming back as `agentIdentity.name` on the inbound leg is
    correct, not a fault.
 4. **Capture Identity Payload**, on the Identity element, if the nesting is in
