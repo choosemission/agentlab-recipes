@@ -325,12 +325,13 @@ can be spent once.
 
 **`submit_completion_code` is an MCP tool, not a shell command. Do not type it
 into a terminal.** You call it through an MCP client connected to the Lab
-catalogue — the one you set up in the *Connect your agent to the Lab* setup
-step — at:
+catalogue.
 
-```
-https://agentlab.choosemission.com/gw/lab-catalog-mcp
-```
+> **Not connected, switching client, or told `not-signed-in`?** Follow
+> [Connect your agent to the Lab](https://agentlab.choosemission.com/setup/connect-to-the-lab)
+> first. It covers Claude Code, VS Code and other clients, and how to reconnect.
+> In VS Code, this repository's [`.vscode/mcp.json`](../../.vscode/mcp.json)
+> already names the catalogue.
 
 The tool takes two arguments:
 
@@ -339,45 +340,17 @@ The tool takes two arguments:
 | `recipe` | `hello-agent` |
 | `code` | the six digits the agent gave you |
 
-In practice you ask your agent to do it, and it makes the call:
+In practice you ask your agent, and it makes the call:
 
 > Use the lab-catalog tool `submit_completion_code` with recipe `hello-agent`
 > and code `123456`.
 
-Expect two things along the way. If the client is not yet signed in to the Lab,
-a browser opens for you to sign in with your Lab account. And most clients ask
-you to approve a tool call before it runs — this is the only catalogue tool that
-writes anything, so approve it.
+A browser may open for you to sign in with your Lab account, and most clients
+ask you to approve the tool call before it runs. This is the only catalogue tool
+that writes anything, so approve it.
 
 The catalogue verified your Lab token, so it knows who you are; the code says a
 properly configured gateway got through. Neither is worth much alone.
-
-### In VS Code
-
-This repository ships [`.vscode/mcp.json`](../../.vscode/mcp.json), so opening
-the repository folder in VS Code offers the `lab-catalog` server with nothing
-to configure:
-
-1. Open the `agentlab-recipes` folder in VS Code. If VS Code asks whether to
-   trust or start the `lab-catalog` MCP server, allow it.
-2. Open **Copilot Chat** and switch the mode to **Agent**. Tools are only
-   available in Agent mode.
-3. Ask it to submit the code, as above.
-4. Sign in with your Lab account if a browser opens, then approve the
-   `submit_completion_code` call when VS Code asks.
-
-The reply confirms the completion was recorded, or tells you why not — see
-*When it fails unexpectedly* below.
-
-### In Claude Code
-
-If `lab-catalog` is not already connected:
-
-```bash
-claude mcp add --transport http lab-catalog https://agentlab.choosemission.com/gw/lab-catalog-mcp
-```
-
-Then, in a session, run `/mcp`, authenticate `lab-catalog`, and ask as above.
 
 ---
 
@@ -463,7 +436,7 @@ with a timestamp when you ask for help.
 | `submit_completion_code: command not found` | It is an MCP tool, not a shell command. See step 11 |
 | `wrong-recipe` when you submit | The code is real and unspent. Submit it again naming `hello-agent` |
 | `unknown-code` when you submit | Most likely expired — codes last an hour. Check the digits, then ask the agent for a fresh one |
-| `not-signed-in` when you submit | Your client reached the catalogue without a Lab sign-in. Connect it to `https://agentlab.choosemission.com/gw/lab-catalog-mcp`, not to any other catalogue address |
+| `not-signed-in` when you submit | Your client reached the catalogue without a Lab sign-in. Reconnect it as [Connect your agent to the Lab](https://agentlab.choosemission.com/setup/connect-to-the-lab) describes |
 
 If the agent misbehaves rather than the surface, run the copy in `agent/`
 locally and compare. Two one-layer debugs beat one five-layer debug.
