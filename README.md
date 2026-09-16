@@ -49,8 +49,14 @@ next, what each recipe teaches — lives on the Lab's catalogue MCP server:
 claude mcp add --transport http lab-catalog https://agentlab.choosemission.com/gw/lab-catalog-mcp
 ```
 
+In **VS Code** there is nothing to add: [`.vscode/mcp.json`](.vscode/mcp.json)
+already names the same URL, so opening this folder offers the `lab-catalog`
+server. Use it from Copilot Chat in **Agent** mode.
+
 Signing in opens a browser. Once connected, `get_started` orients you and
-`get_recipe` returns any recipe's full entry.
+`get_recipe` returns any recipe's full entry. Recipes that end in a completion
+code are submitted the same way, with the `submit_completion_code` tool — an MCP
+tool your client calls, not a command for your terminal.
 
 Each recipe directory has a `README.md` for you and a `CLAUDE.md` for your
 agent. Start with the `README.md`.

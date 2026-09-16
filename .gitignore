@@ -13,4 +13,6 @@ __pycache__/
 # Editors and OS
 .DS_Store
 .idea/
-.vscode/
+.vscode/*
+# The Lab catalogue connection, shared so VS Code offers it on open. No secret.
+!.vscode/mcp.json

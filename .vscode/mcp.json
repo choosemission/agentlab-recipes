@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "lab-catalog": {
+      "type": "http",
+      "url": "https://agentlab.choosemission.com/gw/lab-catalog-mcp"
+    }
+  }
+}

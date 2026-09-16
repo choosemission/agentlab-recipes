@@ -62,8 +62,15 @@ that it is a choice rather than an oversight.
 
 ## If the extraction does not behave
 
-The failure to expect is silent: a schema that is valid JSON Schema but does not
-match how that sender nests, extracting nothing and reporting nothing.
+One mismatch is loud. `agent-response.schema.json` on the **inbound** leg
+refuses every message with
+`422 identity_validation_failed: Identity field 'name' not found in payload` —
+it wants a top-level `name`, and this client sends `agentIdentity.name`. Put
+`caller-inbound.schema.json` there instead.
+
+Otherwise the failure to expect is silent: a schema that is valid JSON Schema
+but does not match how that sender nests, extracting nothing and reporting
+nothing.
 
 Do not guess at the nesting. The gateway will tell you: **Capture Identity
 Payload** on the Identity element exposes a temporary endpoint with automatic
