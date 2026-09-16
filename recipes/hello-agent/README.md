@@ -178,17 +178,17 @@ identity because a recipe told you to. You are configuring it because the agent
 will not answer otherwise.
 
 You add two Identity elements, one on each leg of the same surface, and each
-takes a different schema from [`identity/`](identity/):
+takes a different schema from the [`identity/`](identity/) folder in this
+recipe's directory, `agentlab-recipes/recipes/hello-agent/identity/`.
 
-```
-your client (the caller)
-  → Access Point
-  → [Identity, inbound leg:  caller-inbound.schema.json]    step 6
-  → Managed Agent  →  the Lab's agent
-  → [Identity, response leg: agent-response.schema.json]    step 8
-  → Access Point
-  → your client
-```
+A message travels from your client to the Access Point, along the **inbound
+leg** to the Managed Agent and on to the Lab's agent. The reply comes back along
+the **response leg** to the Access Point and your client.
+
+| Leg | Direction | Schema for its Identity element | Step |
+| --- | --- | --- | --- |
+| Inbound | Access Point → Managed Agent | `caller-inbound.schema.json` | 6 |
+| Response | Managed Agent → Access Point | `agent-response.schema.json` | 8 |
 
 > **Do not use `agent-response.schema.json` on the inbound leg.** It describes
 > the agent's flat descriptor, which your client does not send, so every message
