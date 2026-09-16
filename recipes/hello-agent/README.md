@@ -185,10 +185,10 @@ A message travels from your client to the Access Point, along the **inbound
 leg** to the Managed Agent and on to the Lab's agent. The reply comes back along
 the **response leg** to the Access Point and your client.
 
-| Leg | Direction | Schema for its Identity element | Step |
+| Step | Leg | Direction | Schema for its Identity element |
 | --- | --- | --- | --- |
-| Inbound | Access Point → Managed Agent | `caller-inbound.schema.json` | 6 |
-| Response | Managed Agent → Access Point | `agent-response.schema.json` | 8 |
+| 6 | Inbound | Access Point → Managed Agent | `caller-inbound.schema.json` |
+| 8 | Response | Managed Agent → Access Point | `agent-response.schema.json` |
 
 > **Do not use `agent-response.schema.json` on the inbound leg.** It describes
 > the agent's flat descriptor, which your client does not send, so every message
