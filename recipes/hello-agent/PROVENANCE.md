@@ -41,7 +41,7 @@ Changed, and why:
 | Carries `contextId` forward between messages | Upstream sends every message cold, so the server opens a new context each time and Phase A step 4 — "watch `contextId` persist while `taskId` changes" — cannot be observed at all |
 | Accepts `--task-id`, and `--context-id` | Continues an existing task, so an `input-required` turn can be answered rather than restarted |
 | Pretty-prints the envelope as JSON | Upstream prints a Python dict `repr`: one unwrapped line, thousands of characters. The participant is asked to read this envelope closely in steps 4 and 9 |
-| Adds the "what to notice" summary | Names the envelope fields, and extracts the response-leg credential and workload binding. Reporting, not reasoning — the full envelope is still printed above it, and the summary points rather than concludes |
+| Adds the "what to notice" summary | Names the envelope fields, and extracts the response-leg credential and workload binding. Reporting, not reasoning — the full envelope is still printed above it, and the summary points rather than concludes. Commentary carries a `|` gutter so it never reads as something sent, and the exchange itself prints last, as a `you >` / `agent >` transcript beside the next prompt |
 | Adds `--card` | Step 3 is reading the agent card. Upstream logs three fields of it in passing |
 | Adds `-m/--message` for one-shot sends | The participant's own agent drives this; an interactive-only REPL is awkward to script and awkward to show output from |
 | Adds `--replay` | Renders a saved envelope, so `fixtures/example-response.json` shows what step 9 looks like before it works |
