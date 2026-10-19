@@ -41,6 +41,8 @@ from a2a.types import MessageSendParams, SendMessageRequest, TextPart
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 logger = logging.getLogger("a2a-client")
+# httpx logs every request at INFO, which lands between your prompt and the reply.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # --- Extension URIs. Vendored verbatim; the gateway matches on these strings.
 
@@ -154,56 +156,110 @@ def _presentation(credential: dict[str, Any]) -> dict[str, Any]:
     return vp if isinstance(vp, dict) else {}
 
 
-def report(response_json: dict[str, Any], show_raw: bool = True) -> dict[str, str | None]:
-    """Print the envelope, then name the things worth looking at.
+def _styled(code: str):
+    """ANSI styling on a terminal, nothing when piped or NO_COLOR is set."""
+    if sys.stdout.isatty() and not os.environ.get("NO_COLOR"):
+        return lambda text: f"\033[{code}m{text}\033[0m"
+    return lambda text: text
+
+
+_dim = _styled("2")
+_bold = _styled("1")
+
+
+def section(title: str) -> None:
+    print("\n" + RULE)
+    print(title)
+    print(RULE)
+
+
+def note(*lines: str) -> None:
+    """Commentary from this recipe, as opposed to data from the wire.
+
+    Everything printed through here is explanation. The gutter keeps it
+    distinguishable from what the agent and gateway actually sent, with or
+    without colour.
+    """
+    for line in lines:
+        print(_dim(f"  | {line}".rstrip()))
+
+
+def _sent_text(result: dict[str, Any] | None) -> str:
+    """The caller's last message, as the agent recorded it in the task."""
+    for entry in reversed((result or {}).get("history") or []):
+        if entry.get("role") == "user":
+            return _reply_text(entry)
+    return ""
+
+
+def print_exchange(sent: str, reply: str) -> None:
+    """The conversation itself, printed last so it sits beside the prompt."""
+    print("\n" + _bold(" conversation ".center(len(RULE), "-")))
+    for speaker, text in (("you", sent), ("agent", reply)):
+        if not text:
+            continue
+        label = f"{speaker:>5} > "
+        first, *rest = text.splitlines() or [""]
+        print(_bold(label) + first)
+        for line in rest:
+            print((" " * len(label) + line).rstrip())
+    print()
+
+
+def report(
+    response_json: dict[str, Any],
+    show_raw: bool = True,
+    sent: str = "",
+) -> dict[str, str | None]:
+    """Print what the gateway put around the reply, then the reply itself.
+
+    The detail comes first and the conversation comes last, so the agent's
+    words are what sits directly above the next prompt rather than buried
+    between blocks of annotation.
 
     Returns the ids, so an interactive session can carry them into the next
     message.
     """
     if show_raw:
-        print("\n" + RULE)
-        print("THE FULL ENVELOPE  — everything that came back, unedited")
-        print(RULE)
+        section("THE FULL ENVELOPE  — everything that came back, unedited")
         print(json.dumps(response_json, indent=2, sort_keys=True))
 
     result = _unwrap(response_json)
     if result is None:
-        print("\n" + RULE)
-        print("The agent returned a JSON-RPC error rather than a result.")
-        print(RULE + "\n")
+        error = response_json.get("error") or {}
+        section("NO RESULT")
+        note("The agent returned a JSON-RPC error rather than a result.")
+        print(RULE)
+        print_exchange(
+            sent,
+            f"(error {error.get('code')}: {error.get('message') or 'no message'})",
+        )
         return {"context_id": None, "task_id": None, "state": None}
 
     message = _reply_message(result)
-    text = _reply_text(message)
+    state = (result.get("status") or {}).get("state")
 
-    print("\n" + RULE)
-    print("WHAT THE AGENT SAID")
-    print(RULE)
-    print(text or "(no text parts in the reply)")
-
-    print("\n" + RULE)
-    print("THE ENVELOPE AROUND IT")
-    print(RULE)
+    section("THE ENVELOPE AROUND IT")
     # A2A hands back a task with state, where MCP hands back a return value.
     print(f"  kind        {result.get('kind')}")
-    print(f"  state       {(result.get('status') or {}).get('state')}")
+    print(f"  state       {state}")
     print(f"  taskId      {result.get('id')}")
     print(f"  contextId   {result.get('contextId')}")
     print(f"  history     {len(result.get('history') or [])} message(s)")
 
-    print("\n" + RULE)
-    print("WHAT YOUR GATEWAY ADDED")
-    print(RULE)
+    section("WHAT YOUR GATEWAY ADDED")
     credential = (message or {}).get("metadata", {}).get(CREDENTIAL_EXT_URI)
     if not credential:
         print("  Nothing. No response-leg credential arrived.")
         print()
-        print("  Expected before step 8 — the reply is just the agent's own")
-        print("  unsigned self-description, which is what an ungoverned")
-        print("  exchange looks like. After step 8, this means the Identity")
-        print("  element is on the Managed Agent node rather than on the")
-        print("  response leg, or you are calling the agent directly rather")
-        print("  than through your access point.")
+        note(
+            "Expected before step 8 — the reply is just the agent's own",
+            "unsigned self-description, which is what an ungoverned",
+            "exchange looks like. After step 8, this means the Identity",
+            "element is on the Managed Agent node rather than on the",
+            "response leg, or you are calling the agent directly rather",
+            "than through your access point.",
+        )
     else:
         print(f"  Holder DID  {credential.get('did')}")
         subject = (
@@ -214,18 +270,22 @@ def report(response_json: dict[str, Any], show_raw: bool = True) -> dict[str, st
         binding = subject.get("workloadBinding")
         if binding:
             print()
-            print("  A workload binding. Not a description of the agent — a signed")
-            print("  record of THIS request: which agent acted, for which caller.")
+            note(
+                "A workload binding. Not a description of the agent — a signed",
+                "record of THIS request: which agent acted, for which caller.",
+            )
             print()
             for line in json.dumps(binding, indent=2, sort_keys=True).splitlines():
                 print(f"    {line}")
             caller = (binding.get("userIdentity") or {}).get("id")
             if caller:
                 print()
-                print("  userIdentity.id is the DID your gateway minted on the INBOUND")
-                print("  leg — your DID, not the agent's. Compare it with the caller")
-                print("  DID the agent reports above. They are the same, and nothing")
-                print("  either side wrote joined them:")
+                note(
+                    "userIdentity.id is the DID your gateway minted on the INBOUND",
+                    "leg — your DID, not the agent's. Compare it with the caller",
+                    "DID the agent reports in the conversation below. They are the",
+                    "same, and nothing either side wrote joined them:",
+                )
                 print()
                 print(f"    {caller}")
         elif subject.get("identityFields"):
@@ -235,17 +295,26 @@ def report(response_json: dict[str, Any], show_raw: bool = True) -> dict[str, st
             for line in json.dumps(subject["identityFields"], indent=2, sort_keys=True).splitlines():
                 print(f"    {line}")
             print()
-            print("  The response leg resolved an identity, so the schema matches")
-            print("  what the agent sends. What is missing is the per-request")
-            print("  binding that ties it to your caller DID — look for Workload")
-            print("  Binding on that leg.")
-    print(RULE + "\n")
+            note(
+                "The response leg resolved an identity, so the schema matches",
+                "what the agent sends. What is missing is the per-request",
+                "binding that ties it to your caller DID — look for Workload",
+                "Binding on that leg.",
+            )
 
-    state = (result.get("status") or {}).get("state")
     if state in WAITING_STATES:
-        print("The agent is waiting on you. Answer in the same task:")
-        print(f"  --context-id {result.get('contextId')} --task-id {result.get('id')}")
-        print("(the prompt below does this for you)\n")
+        print()
+        note(
+            "The agent is waiting on you. Answer in the same task:",
+            f"  --context-id {result.get('contextId')} --task-id {result.get('id')}",
+            "(the prompt below does this for you)",
+        )
+    print(RULE)
+
+    print_exchange(
+        _sent_text(result) or sent,
+        _reply_text(message) or "(no text parts in the reply)",
+    )
 
     return {
         "context_id": result.get("contextId"),
@@ -270,7 +339,7 @@ async def send(
         ),
     )
     response = await client.send_message(request)
-    return report(response.model_dump(mode="json", exclude_none=True), show_raw)
+    return report(response.model_dump(mode="json", exclude_none=True), show_raw, text)
 
 
 async def resolve_card(httpx_client: httpx.AsyncClient, url: str):
@@ -283,34 +352,36 @@ def _host(url: str) -> str:
 
 
 def describe_card(card, called_url: str) -> None:
-    print("\n" + RULE)
-    print("THE AGENT CARD")
-    print(RULE)
+    section("THE AGENT CARD")
     print(json.dumps(card.model_dump(mode="json", exclude_none=True), indent=2, sort_keys=True))
     print(RULE)
     print(f"  Name        {card.name}")
     print(f"  Version     {card.version}")
     print(f"  url         {card.url}")
     if _host(card.url) == _host(called_url):
-        print("              ^ the same address you called. Called through a")
-        print("                surface, that means your gateway rewrote the card")
-        print("                it served you: discovery itself now routes through")
-        print("                the governed door, and the Lab's address for this")
-        print("                agent never reached you.")
+        note(
+            "^ the same address you called. Called through a surface, that",
+            "  means your gateway rewrote the card it served you: discovery",
+            "  itself now routes through the governed door, and the Lab's",
+            "  address for this agent never reached you.",
+        )
     else:
-        print(f"              ^ NOT the address you called ({_host(called_url)}).")
-        print("                Messages will go to the card's url, not yours. If")
-        print("                that address is the Lab's, your surface is serving")
-        print("                the card through without rewriting it.")
+        note(
+            f"^ NOT the address you called ({_host(called_url)}).",
+            "  Messages will go to the card's url, not yours. If that address",
+            "  is the Lab's, your surface is serving the card through without",
+            "  rewriting it.",
+        )
     if card.skills:
         print("  Skills:")
         for skill in card.skills:
             print(f"    - {skill.name}: {skill.description}")
-        print("              ^ prose, not JSON Schema. Put this beside the")
-        print("                tools/list output from hello-gateway: MCP")
-        print("                advertises typed functions for your model to")
-        print("                pick between, A2A advertises what an agent can")
-        print("                do and leaves the how to the agent.")
+        note(
+            "^ prose, not JSON Schema. Put this beside the tools/list output",
+            "  from hello-gateway: MCP advertises typed functions for your",
+            "  model to pick between, A2A advertises what an agent can do and",
+            "  leaves the how to the agent.",
+        )
     if card.capabilities and card.capabilities.extensions:
         print("  Extensions:")
         for ext in card.capabilities.extensions:
@@ -457,7 +528,7 @@ async def main(argv: list[str]) -> int:
         context_id, task_id = args.context_id, args.task_id
         while True:
             try:
-                text = input("you > ").strip()
+                text = input("  you > ").strip()
             except (KeyboardInterrupt, EOFError):
                 print()
                 return 0
